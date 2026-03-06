@@ -62,12 +62,17 @@
   </style>
 </head>
 <body class="bg-slate-50 font-sans text-gray-800 pb-12">
+  <!-- 번역기 위치 -->
+  <div class="fixed top-4 right-4 z-50 bg-white/80 backdrop-blur-sm p-2 rounded-xl shadow-sm border border-indigo-50">
+    <div id="google_translate_element"></div>
+  </div>
+
   <div id="root"></div>
 
   <script type="text/babel">
     const { useState, useRef, useEffect } = React;
 
-    const apiKey = ""; // 선생님의 Gemini API 키를 여기에 붙여넣으세요!
+    const apiKey = "AIzaSyCf6g-krNLCuA5m1HmH5k0DsJkkAAFgMmw"; // ⚠️ 선생님의 Gemini API 키를 여기에 붙여넣으세요!
 
     const callGemini = async (prompt, systemInstruction) => {
       const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
@@ -124,9 +129,9 @@
       const [isG2DnDOpen, setIsG2DnDOpen] = useState(false);
       const initialDndItems = [
         { id: 3, text: "손잡이를 강하게 움켜쥔다." },
-        { id: 1, text: "소화기를 불이 난 곳으로 가져가 안전핀을 뽑는다." },
+        { id: 1, text: "소화기의 안전핀을 뽑는다." },
         { id: 4, text: "불을 향해 빗자루로 쓸듯이 골고루 뿌린다." },
-        { id: 2, text: "바람을 등지고 노즐을 불 쪽으로 향하게 한다." }
+        { id: 2, text: "바람을 등지고 서서 호스를 빼서 불이 난 곳을 향한다." }
       ];
       const [dndItems, setDndItems] = useState([...initialDndItems]);
       const [draggingIdx, setDraggingIdx] = useState(null);
@@ -151,6 +156,39 @@
 
       const isM2Solved = m2Message.includes('훌륭');
       const isM3Solved = m3Message.includes('성공');
+
+      // --- 상단 진행 상태 표시바 ---
+      const renderProgressBar = () => {
+        if (currentScreen === 'intro') return null;
+
+        const steps = [
+          { id: 'mission1', name: '🧪 실험실' },
+          { id: 'mission2', name: '🌲 야외 숲' },
+          { id: 'mission3', name: '💻 해커방' },
+          { id: 'certificate', name: '🏆 명예의 전당' }
+        ];
+
+        const currentIndex = steps.findIndex(s => s.id === currentScreen);
+
+        return (
+          <div className="flex flex-wrap justify-center items-center gap-2 md:gap-3 mb-8 mt-4 px-4 w-full animate-fade-in text-sm md:text-base font-bold">
+            {steps.map((step, index) => {
+              const isActive = index === currentIndex;
+              const isPassed = index < currentIndex;
+              return (
+                <React.Fragment key={step.id}>
+                  <div className={`flex items-center gap-1 md:gap-2 px-4 py-2 rounded-full transition-all ${isActive ? 'bg-indigo-600 text-white shadow-lg transform scale-105' : isPassed ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-200 text-gray-400'}`}>
+                    {step.name}
+                  </div>
+                  {index < steps.length - 1 && (
+                    <div className={`text-lg md:text-xl ${isPassed ? 'text-indigo-400' : 'text-gray-300'}`}>▶</div>
+                  )}
+                </React.Fragment>
+              );
+            })}
+          </div>
+        );
+      };
 
       const Button = ({ onClick, children, className = '', disabled = false }) => (
         <button
@@ -209,6 +247,7 @@
       const handleM1Choice = (group, isCorrect, actionText = "") => {
         if (isCorrect) {
           if (group === 'g2') {
+            setDndItems([...initialDndItems]); // 드래그 앤 드롭 초기화
             setIsG2DnDOpen(true);
           } else {
             setCurrentActionText(actionText);
@@ -226,7 +265,8 @@
       const startCamera = async () => {
         setCameraError(false);
         try {
-          const mediaStream = await navigator.mediaDevices.getUserMedia({ video: true });
+          // 모바일/태블릿 등에서 교실 사물을 찍기 편하도록 후면 카메라(environment) 우선 호출
+          const mediaStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } } });
           setStream(mediaStream);
           setIsCameraActive(true);
           setTimeout(() => {
@@ -269,14 +309,12 @@
           setImageCheckResult('정답: 미션 완벽하게 성공! 📸✨');
           setIsImageChecking(false);
           setSavedPhotos(prev => [...prev, { group: activeGroup.replace('g', ''), img: capturedImg }]);
-          completeGroupMission();
         }, 3000);
       };
 
       const handleTeacherBypass = () => {
         setImageCheckResult('선생님 확인 완료! 멋진 모습이었습니다! 🎬✨');
         setIsImageChecking(false);
-        completeGroupMission();
       };
 
       const completeGroupMission = () => {
@@ -353,21 +391,16 @@
       // G2 드래그앤드롭 정답 확인 로직
       const checkG2DnDSuccess = (items) => {
         if (items[0].id === 1 && items[1].id === 2 && items[2].id === 3 && items[3].id === 4) {
-          setM1Message('정답입니다! 🌟 올바른 사용법을 익혔네요! 이제 직접 진짜 소화기를 찾아볼까요?');
-          // 순서를 맞추면 2초 뒤 카메라 미션으로 이동
-          setTimeout(() => {
-            setIsG2DnDOpen(false);
-            setCurrentActionText("교실이나 복도에 있는 진짜 소화기를 찾아 가리키는");
-            setIsImageVerifyOpen(true);
-            setM1Message('');
-          }, 2500);
+          setM1Message('정답입니다! 🌟 올바른 소화기 사용법을 익혔네요! 자, 이제 불을 끄는 또 다른 도구인 진짜 "소화담요"를 찾아볼까요? (아래 버튼을 누르세요)');
+        } else {
+          setM1Message(''); // 순서가 틀려졌을 때 메시지 지우기
         }
       };
 
       const renderReviewContent = (groupId) => {
         const reviewData = {
           g1: { title: "눈에 약품이 튀었을 때", desc: "눈에 약품이 들어갔을 때는 '눈 세척기'를 이용하여 흐르는 물에 눈을 깨끗이 씻어내야 합니다.", icon: "👁️" },
-          g2: { title: "실험 중 불이 났을 때", desc: "불이 났을 때는 '소화기'를 사용합니다.\n1. 안전핀을 뽑는다.\n2. 바람을 등지고 노즐을 불 쪽으로 향한다.\n3. 손잡이를 강하게 움켜쥔다.\n4. 골고루 뿌린다.", icon: "🔥" },
+          g2: { title: "실험 중 불이 났을 때", desc: "불이 났을 때는 '소화기'나 '소화담요'를 사용합니다.\n[소화기 사용법]\n1. 안전핀을 뽑는다.\n2. 바람을 등지고 서서 호스를 불 쪽으로 향한다.\n3. 손잡이를 움켜쥔다.\n4. 빗자루로 쓸듯이 뿌린다.", icon: "🔥" },
           g3: { title: "뜨거운 것에 데었을 때", desc: "화상을 입었을 때는 데인 부위를 '흐르는 차가운 물'로 충분히 식혀주어야 합니다.", icon: "💧" },
           g4: { title: "유리 비커가 깨졌을 때", desc: "유리가 깨졌을 때는 절대 맨손으로 만지지 말고, '선생님께 알린 후 빗자루와 쓰레받기'로 안전하게 치워야 합니다.", icon: "💥" },
           g5: { title: "약품 냄새를 맡을 때", desc: "약품의 냄새를 맡을 때는 코를 직접 대지 않고 '손으로 살살 부채질'을 하여 간접적으로 냄새를 맡아야 합니다.", icon: "👃" },
@@ -605,7 +638,6 @@
                     </div>
                   </div>
                 )}
-                {/* 7모둠 퀴즈 추가 */}
                 {activeGroup === 'g7' && !isImageVerifyOpen && !m1Progress.g7 && (
                   <div className="text-center mt-6">
                     <h2 className="text-2xl md:text-3xl font-black text-indigo-600 mb-4">🥽 [7모둠] 실험하기 전 안전 복장!</h2>
@@ -613,161 +645,186 @@
                     <div className="flex flex-col md:flex-row justify-center gap-4">
                       <button onClick={() => handleM1Choice('g7', false)} className="p-6 bg-gray-100 rounded-xl border-2 w-full text-lg font-bold hover:bg-gray-200">반팔, 반바지, 슬리퍼</button>
                       <button onClick={() => handleM1Choice('g7', false)} className="p-6 bg-gray-100 rounded-xl border-2 w-full text-lg font-bold hover:bg-gray-200">모자, 선글라스, 목도리</button>
-                      <button onClick={() => handleM1Choice('g7', true, "실험복, 보안경, 장갑을 완벽하게 착용한 늠름한")} className="p-6 bg-gray-100 rounded-xl border-2 w-full text-lg font-bold hover:bg-indigo-100">실험복, 보안경, 실험용 장갑</button>
+                      <button onClick={() => handleM1Choice('g7', true, "실험복, 보안경, 장갑을 완벽하게 착용한 늠름한 모습")} className="p-6 bg-gray-100 rounded-xl border-2 w-full text-lg font-bold hover:bg-indigo-100">실험복, 보안경, 실험용 장갑</button>
                     </div>
                   </div>
                 )}
-                {/* 8모둠 퀴즈 추가 */}
                 {activeGroup === 'g8' && !isImageVerifyOpen && !m1Progress.g8 && (
                   <div className="text-center mt-6">
                     <h2 className="text-2xl md:text-3xl font-black text-emerald-600 mb-4">🛢️ [8모둠] 사용한 시약 버리기!</h2>
                     <p className="text-lg md:text-xl mb-8">실험 후 남은 시약(약품)은 어디에 버려야 안전할까요?</p>
                     <div className="flex flex-col md:flex-row justify-center gap-4">
                       <button onClick={() => handleM1Choice('g8', false)} className="p-6 bg-gray-100 rounded-xl border-2 w-full text-lg font-bold hover:bg-gray-200">교실 일반 쓰레기통에 붓는다</button>
-                      <button onClick={() => handleM1Choice('g8', true, "실험실에 있는 지정된 폐수통을 찾아서 가리키는")} className="p-6 bg-gray-100 rounded-xl border-2 w-full text-lg font-bold hover:bg-emerald-100">성분별로 지정된 폐수통에 버린다</button>
+                      <button onClick={() => handleM1Choice('g8', true, "실험실에 있는 지정된 폐수통을 찾아서 가리키는 모습")} className="p-6 bg-gray-100 rounded-xl border-2 w-full text-lg font-bold hover:bg-emerald-100">성분별로 지정된 폐수통에 버린다</button>
                       <button onClick={() => handleM1Choice('g8', false)} className="p-6 bg-gray-100 rounded-xl border-2 w-full text-lg font-bold hover:bg-gray-200">화장실 세면대에 흘려보낸다</button>
                     </div>
                   </div>
                 )}
 
-                {/* --- 2모둠 소화기 흐름 (선택 -> 드래그앤드롭 -> 성공시 isImageVerifyOpen으로 이동) --- */}
+                {/* --- 2모둠 소화담요 흐름 (선택 -> 드래그앤드롭 -> 성공시 isImageVerifyOpen으로 이동) --- */}
                 {activeGroup === 'g2' && !isG2DnDOpen && !isImageVerifyOpen && !m1Progress.g2 && (
                   <div className="text-center mt-6">
                     <h2 className="text-2xl md:text-3xl font-black text-red-600 mb-4">🚨 [2모둠] 앗, 불이 났다!</h2>
                     <p className="text-lg md:text-xl mb-8">가장 먼저 가져와야 할 장비를 터치하세요!</p>
                     <div className="flex flex-col md:flex-row justify-center gap-4">
                       <button onClick={() => handleM1Choice('g2', false)} className="p-6 bg-gray-100 rounded-xl border-2 w-full text-lg font-bold hover:bg-gray-200">보안경</button>
-                      <button onClick={() => handleM1Choice('g2', false)} className="p-6 bg-gray-100 rounded-xl border-2 w-full text-lg font-bold hover:bg-gray-200">돋보기</button>
                       <button onClick={() => handleM1Choice('g2', true)} className="p-6 bg-gray-100 rounded-xl border-2 w-full text-lg font-bold hover:bg-red-100">소화기</button>
+                      <button onClick={() => handleM1Choice('g2', false)} className="p-6 bg-gray-100 rounded-xl border-2 w-full text-lg font-bold hover:bg-gray-200">알코올 램프</button>
                     </div>
                   </div>
                 )}
-                
-                {activeGroup === 'g2' && isG2DnDOpen && !isImageVerifyOpen && (
-                  <div className="text-center animate-fade-in mt-6">
-                    <h2 className="text-2xl md:text-3xl font-black text-red-600 mb-4">🔥 소화기 사용법 맞추기!</h2>
-                    <p className="text-lg mb-6 break-keep">
-                      정답입니다! 이제 올바른 소화기 사용 순서를 맞춰보세요.<br/>
-                      <span className="text-red-500 font-bold bg-red-50 px-3 py-1 rounded-full border border-red-200 mt-2 inline-block">
-                        항목을 꾹 눌러서 위아래로 드래그(끌기)하면 순서가 바뀝니다! ↕️
-                      </span>
+
+                {/* 2모둠: 드래그 앤 드롭 퍼즐 */}
+                {isG2DnDOpen && !m1Progress.g2 && (
+                  <div className="text-center mt-6 animate-fade-in">
+                    <h2 className="text-2xl font-black text-red-600 mb-4">🔥 [2모둠] 소화기 사용 순서 맞추기</h2>
+                    <p className="text-lg text-gray-700 mb-6 bg-yellow-100 inline-block px-4 py-2 rounded-lg font-bold">
+                      아래 문장들을 위아래로 <span className="text-indigo-600">드래그(터치해서 이동)</span>하여 올바른 사용 순서대로 맞춰보세요!
                     </p>
-                    
-                    <div className="flex flex-col gap-3 max-w-lg mx-auto mb-6">
-                      {dndItems.map((item, idx) => (
-                        <div 
+                    <div className="max-w-xl mx-auto space-y-3 relative mb-6">
+                      {dndItems.map((item, index) => (
+                        <div
                           key={item.id}
-                          data-index={idx}
-                          draggable={true}
-                          onDragStart={(e) => handleDragStart(e, idx)}
-                          onDragEnter={(e) => handleDragEnter(e, idx)}
+                          data-index={index}
+                          draggable
+                          onDragStart={(e) => handleDragStart(e, index)}
+                          onDragEnter={(e) => handleDragEnter(e, index)}
                           onDragEnd={handleDragEnd}
-                          onDragOver={(e) => e.preventDefault()}
-                          onTouchStart={(e) => handleTouchStart(e, idx)}
+                          onTouchStart={(e) => handleTouchStart(e, index)}
                           onTouchMove={handleTouchMove}
                           onTouchEnd={handleTouchEnd}
-                          className={`drag-item flex items-center p-4 border-4 rounded-2xl text-left font-bold text-lg md:text-xl shadow-sm ${
-                            draggingIdx === idx ? 'dragging bg-red-50 border-red-400 z-10' : 'bg-white border-gray-200 hover:border-red-300 cursor-grab active:cursor-grabbing'
-                          }`}
+                          className={`drag-item p-5 bg-white border-2 border-red-200 rounded-xl shadow-sm text-lg font-bold flex items-center gap-4 cursor-grab active:cursor-grabbing select-none
+                            ${draggingIdx === index ? 'dragging border-red-500 bg-red-50' : 'hover:border-red-300'}`}
                         >
-                          <div className="text-gray-400 mr-3 text-2xl cursor-grab active:cursor-grabbing">≡</div>
-                          <div className={`w-10 h-10 text-white bg-red-500 rounded-full flex items-center justify-center font-black mr-4 flex-shrink-0 shadow-inner`}>
-                            {idx + 1}
-                          </div>
-                          {item.text}
+                          <div className="text-2xl text-red-300 cursor-grab">↕</div>
+                          <div className="flex-1 text-left">{item.text}</div>
                         </div>
                       ))}
                     </div>
-                  </div>
-                )}
 
-                {/* --- 카메라 인증 화면 (모든 모둠 공통 사용) --- */}
-                {isImageVerifyOpen && (
-                  <div className="text-center animate-fade-in mt-6">
-                    {!m1Progress[activeGroup] && (
-                      <>
-                        <h2 className="text-3xl font-black text-blue-600 mb-4">📸 {activeGroup.replace('g', '')}모둠 미션! 사진을 찍어라!</h2>
-                        <p className="text-lg mb-6 break-keep">
-                          다 함께 모여서 아래 미션에 맞는 인증샷을 찍어주세요!<br/>
-                          <span className="text-blue-600 font-extrabold bg-blue-100 px-3 py-2 rounded-full border-2 border-blue-200 mt-2 inline-block shadow-sm">
-                            미션: "{currentActionText}" 모습
-                          </span>
-                        </p>
-                      </>
-                    )}
-                    
-                    <div className="mb-6 flex flex-col items-center">
-                      {!isCameraActive && !capturedImg && !isImageChecking && !m1Progress[activeGroup] && (
-                        <div className="flex flex-col items-center gap-4 w-full max-w-md">
-                          <button onClick={startCamera} className="w-full px-8 py-5 rounded-full font-bold text-2xl shadow-lg bg-blue-500 hover:bg-blue-600 text-white animate-pulse">
-                            🎥 카메라 켜고 사진 찍기
-                          </button>
-                          
-                          {cameraError && (
-                            <div className="mt-4 p-5 bg-red-50 border-2 border-red-300 rounded-2xl w-full text-left animate-fade-in">
-                              <p className="text-red-700 font-bold mb-3 text-sm">
-                                ⚠️ 카메라를 켤 수 없습니다. 주소창 자물쇠(🔒) 아이콘을 눌러 권한을 허용하거나, 다른 프로그램에서 카메라를 끄고 다시 시도해 보세요.
-                              </p>
-                              <button onClick={handleTeacherBypass} className="w-full px-4 py-3 bg-yellow-400 hover:bg-yellow-500 text-yellow-900 font-black text-lg rounded-xl shadow-sm flex items-center justify-center gap-2">
-                                👩‍🏫 선생님 확인으로 넘어가기 ⏭️
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      )}
-
-                      <div className={`relative w-full max-w-2xl mx-auto ${isCameraActive ? 'block' : 'hidden'}`}>
-                        <video ref={videoRef} autoPlay playsInline className="w-full rounded-2xl border-8 border-blue-400 shadow-2xl bg-black transform scale-x-[-1]"></video>
-                        <button onClick={takePhotoAndCheck} className="absolute bottom-4 left-1/2 transform -translate-x-1/2 px-10 py-4 bg-red-500 text-white font-black text-2xl rounded-full shadow-2xl border-4 border-white active:scale-95">
-                          📸 찰칵! 찍기
-                        </button>
+                    {dndItems[0].id === 1 && dndItems[1].id === 2 && dndItems[2].id === 3 && dndItems[3].id === 4 && (
+                      <div className="flex justify-center mt-6 mb-4 animate-bounce">
+                        <Button 
+                          onClick={() => {
+                            setIsG2DnDOpen(false);
+                            setCurrentActionText("교실이나 복도에 있는 진짜 소화담요를 찾아 가리키는");
+                            setIsImageVerifyOpen(true);
+                            setM1Message('');
+                          }}
+                          className="bg-red-600 hover:bg-red-700 text-white px-8 py-4 text-xl rounded-full shadow-lg"
+                        >
+                          소화담요 사진 미션 하러가기 📸
+                        </Button>
                       </div>
-                      
-                      {capturedImg && !m1Progress[activeGroup] && (
-                        <div className="mt-4 flex flex-col items-center animate-fade-in w-full max-w-2xl">
-                          <img src={capturedImg} alt="찍은 사진" className="w-full rounded-2xl border-8 border-green-300 shadow-xl transform scale-x-[-1]" />
-                          {!isImageChecking && !imageCheckResult && (
-                            <div className="flex flex-col md:flex-row gap-4 mt-6">
-                              <button onClick={retakePhoto} className="px-6 py-3 bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold text-lg rounded-xl shadow-sm transition-all active:scale-95 flex items-center justify-center gap-2">🔄 다시 찍기</button>
-                              <button onClick={submitPhoto} className="px-8 py-3 bg-green-500 hover:bg-green-600 text-white font-black text-xl rounded-xl shadow-md border-2 border-green-600 transition-all active:scale-95 flex items-center justify-center gap-2">🚀 이 사진으로 제출하기</button>
-                            </div>
-                          )}
-                        </div>
-                      )}
+                    )}
 
-                      {(isImageChecking || imageCheckResult || m1Progress[activeGroup]) && (
-                        <div className="mt-6 flex flex-col items-center animate-fade-in w-full">
-                          {isImageChecking && <div className="font-bold text-xl text-blue-600 animate-bounce bg-blue-50 px-6 py-3 rounded-full border border-blue-200">선생님과 AI 요정이 사진을 심사 중입니다... 🎬👀</div>}
-                          {imageCheckResult && !m1Progress[activeGroup] && (
-                            <div className="p-6 rounded-2xl font-bold text-lg text-left inline-block border-4 shadow-md bg-green-50 text-green-900 border-green-400">
-                              ✅ {imageCheckResult}
-                            </div>
-                          )}
-                          {m1Progress[activeGroup] && (
-                             <div className="mt-4 w-full animate-fade-in text-center">
-                               {capturedImg && <img src={capturedImg} alt="성공 사진" className="w-full max-w-md mx-auto rounded-2xl border-4 border-green-400 shadow-md mb-6 transform scale-x-[-1]" />}
-                               {renderReviewContent(activeGroup)}
-                               <Button onClick={() => { setActiveGroup(null); setIsImageVerifyOpen(false); setM1Message(''); }} className="bg-indigo-600 hover:bg-indigo-700 text-white mx-auto mt-6 w-full md:w-auto px-10 py-4 text-xl rounded-full shadow-lg">
-                                 🔙 모둠 목록으로 돌아가기
-                               </Button>
-                             </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
+                    <MessageBox message={m1Message} type={m1Message.includes('정답') ? 'success' : 'error'} />
                   </div>
                 )}
 
-                {!m1Progress[activeGroup] && <MessageBox message={m1Message} type={m1Message.includes('정답') || m1Message.includes('완벽') ? 'success' : 'error'} />}
-                {m1Progress[activeGroup] && m1Message && <MessageBox message={m1Message} type="success" />}
+                {/* --- 공통 카메라 촬영 및 인증 화면 --- */}
+                {isImageVerifyOpen && !m1Progress[activeGroup] && (
+                  <div className="mt-8 text-center animate-fade-in">
+                    <div className="bg-blue-50 p-6 rounded-2xl border-2 border-blue-200 inline-block w-full max-w-2xl mb-6 shadow-inner">
+                      <h3 className="text-2xl font-black text-blue-800 mb-3 flex justify-center items-center gap-2">
+                        <span>📸</span> 모둠 사진 미션!
+                      </h3>
+                      <p className="text-lg font-bold text-gray-700 break-keep">
+                        모둠원들이 함께 모여 <br/><span className="text-indigo-600 bg-indigo-100 px-2 py-1 rounded">[{currentActionText}]</span><br/> 모습을 사진으로 찍어주세요!
+                      </p>
+                    </div>
+
+                    {!isCameraActive && !capturedImg && !imageCheckResult.includes('성공') && !imageCheckResult.includes('완료') && (
+                      <div className="flex flex-col sm:flex-row justify-center gap-4">
+                        <Button onClick={startCamera} className="bg-blue-600 hover:bg-blue-700 text-white">📷 카메라 켜기</Button>
+                        <Button onClick={handleTeacherBypass} className="bg-gray-500 hover:bg-gray-600 text-white">🧑‍🏫 선생님이 직접 확인하기</Button>
+                      </div>
+                    )}
+
+                    {cameraError && (
+                      <div className="mt-4 p-4 bg-red-100 text-red-800 rounded-lg border border-red-300 font-bold">
+                        카메라를 사용할 수 없습니다. 브라우저 설정에서 카메라 권한을 허용해주세요.<br/>
+                        또는 '선생님이 직접 확인하기' 버튼을 이용하세요.
+                      </div>
+                    )}
+
+                    {isCameraActive && (
+                      <div className="flex flex-col items-center gap-4 mt-6">
+                        <div className="relative rounded-2xl overflow-hidden shadow-lg border-4 border-indigo-200 bg-black max-w-lg w-full">
+                          <video ref={videoRef} autoPlay playsInline className="w-full h-auto" />
+                        </div>
+                        <Button onClick={takePhotoAndCheck} className="bg-red-500 hover:bg-red-600 text-white text-xl px-10 py-4 w-full max-w-lg rounded-full animate-pulse shadow-xl">
+                          찰칵! 사진 찍기 📸
+                        </Button>
+                      </div>
+                    )}
+
+                    {capturedImg && (
+                      <div className="flex flex-col items-center gap-6 mt-6">
+                        <div className="relative rounded-2xl overflow-hidden shadow-lg border-4 border-indigo-400 max-w-lg w-full bg-black">
+                          <img src={capturedImg} alt="촬영된 사진" className="w-full h-auto object-contain" />
+                        </div>
+                        
+                        {!isImageChecking && !imageCheckResult.includes('성공') && !imageCheckResult.includes('완료') && (
+                          <div className="flex gap-4 w-full max-w-lg">
+                            <Button onClick={retakePhoto} className="flex-1 bg-gray-500 hover:bg-gray-600 text-white">다시 찍기 🔄</Button>
+                            <Button onClick={submitPhoto} className="flex-1 bg-green-500 hover:bg-green-600 text-white shadow-lg">AI 요정에게 제출 ✨</Button>
+                          </div>
+                        )}
+
+                        {isImageChecking && (
+                          <div className="text-indigo-600 font-bold text-xl animate-pulse mt-4 bg-indigo-50 px-6 py-3 rounded-full border border-indigo-200">
+                            AI 요정이 사진을 분석 중입니다... 🧚‍♀️🔍
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {(imageCheckResult.includes('성공') || imageCheckResult.includes('완료')) && (
+                      <div className="flex justify-center mt-8 animate-bounce">
+                        <Button 
+                          onClick={completeGroupMission} 
+                          className="bg-green-600 hover:bg-green-700 text-white px-10 py-4 text-xl rounded-full shadow-xl border-4 border-green-300"
+                        >
+                          🎉 미션 성공! 모둠 복습하러 가기 ▶️
+                        </Button>
+                      </div>
+                    )}
+
+                    <MessageBox message={m1Message || imageCheckResult} type={(imageCheckResult.includes('성공') || imageCheckResult.includes('완료')) ? 'success' : 'error'} />
+                  </div>
+                )}
               </div>
             )}
 
-            {isAllComplete && !activeGroup && (
-              <div className="text-center mt-12 animate-bounce">
-                <Button onClick={() => setCurrentScreen('mission2')} className="bg-green-500 text-white hover:bg-green-600 text-2xl py-5 px-12 rounded-full mx-auto shadow-xl border-4 border-green-200">
-                  🎉 실험실 미션 올클리어! 제2의 방으로 ➔
-                </Button>
+            {isAllComplete && (
+              <div className="mt-12 text-center animate-fade-in bg-green-50 p-8 rounded-3xl border-4 border-green-400 shadow-xl">
+                {isM3Solved ? (
+                  <>
+                    <h2 className="text-3xl font-black text-green-700 mb-4">📖 실험실 복습 중</h2>
+                    <p className="text-xl text-gray-700 mb-6 font-bold">8개 모둠의 미션을 자유롭게 눌러서 복습하세요!</p>
+                    <Button 
+                      onClick={() => { setActiveGroup(null); setCurrentScreen('certificate'); }}
+                      className="bg-yellow-500 hover:bg-yellow-600 text-white text-xl px-10 py-4 mx-auto w-full md:w-auto rounded-full shadow-lg"
+                    >
+                      명예의 전당으로 돌아가기 🏆
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <h2 className="text-3xl font-black text-green-700 mb-4">🎉 제1의 방 미션 완료! 🎉</h2>
+                    <p className="text-xl text-gray-700 mb-6 font-bold">모든 모둠이 위기 대처법을 완벽히 익혔습니다!<br/>이제 다음 방의 문이 열립니다.</p>
+                    <Button 
+                      onClick={() => {
+                        setActiveGroup(null);
+                        setCurrentScreen('mission2');
+                      }}
+                      className="bg-green-600 hover:bg-green-700 text-white text-xl px-10 py-4 mx-auto w-full md:w-auto rounded-full shadow-lg"
+                    >
+                      다음 방으로 이동 🚪▶️
+                    </Button>
+                  </>
+                )}
               </div>
             )}
           </div>
@@ -776,266 +833,242 @@
 
       const renderMission2 = () => {
         const questions = [
-          "예쁜 꽃과 신기한 버섯을 발견하면 바로 따서 맛을 본다.",
-          "다리가 아프면 푹신한 풀밭에 함부로 앉거나 엎드려서 쉰다.",
-          "야외 활동을 할 때는 긴소매와 긴바지 옷을 입고 운동화를 신는다.",
-          "동식물을 채집할 때는 손을 보호하기 위해 장갑을 착용한다.",
-          "벌레나 식물은 무조건 많이 모을수록 좋으므로 최대한 많이 채집한다.",
-          "야외 활동이 끝난 뒤에는 반드시 비누로 손을 깨끗이 씻는다."
+          { q: "1. 숲속에서 예쁜 벌집을 발견하면 막대기로 톡톡 건드려본다.", ans: false },
+          { q: "2. 등산 중 길가에 있는 색깔이 예쁜 버섯은 따서 먹어도 된다.", ans: false },
+          { q: "3. 여름에 숲에 갈 때도 벌레에 물리지 않게 얇은 긴소매 옷과 긴바지를 입는 것이 좋다.", ans: true },
+          { q: "4. 산이나 숲에 갈 때는 모기나 진드기 기피제를 뿌리면 도움이 된다.", ans: true },
+          { q: "5. 바위 밑이나 풀숲에서 뱀을 만나면 귀여우니까 손으로 만져본다.", ans: false },
+          { q: "6. 산에서는 정해진 탐방로(길)로만 다녀야 길을 잃지 않고 안전하다.", ans: true }
         ];
 
         return (
           <div className="max-w-4xl mx-auto px-4 py-8 animate-fade-in">
             <TitleBox 
-              title="제2의 방: 비밀의 숲" 
-              subtitle="실험실 밖 야외 숲입니다. 6개의 OX 퀴즈를 모두 맞혀야 숲을 빠져나갈 수 있습니다."
+              title="제2의 방: 고요한 숲속의 시험" 
+              subtitle="야외 활동 시 지켜야 할 안전 수칙입니다. O, X 퀴즈를 모두 맞혀주세요!"
               icon="🌲"
             />
-            
-            <div className="bg-indigo-50 border-4 border-indigo-200 rounded-3xl p-6 md:p-8 mb-10 text-center shadow-md">
-              <h3 className="text-2xl font-black text-indigo-800 mb-4">🎯 이 방의 문제는 누가 풀까?</h3>
-              <p className="text-indigo-600 font-medium mb-6">버튼을 눌러서 문제를 풀 친구들을 뽑아보세요!</p>
-              
-              <Button 
-                onClick={pickRandomCondition} 
-                disabled={isM2Solved}
-                className="bg-indigo-500 hover:bg-indigo-600 text-white mb-6 mx-auto text-xl py-4 px-8 rounded-full"
-              >
-                랜덤 조건 뽑기 🎲
-              </Button>
-              
-              {randomCondition && (
-                <div className="bg-white p-6 rounded-2xl shadow-inner border-2 border-indigo-300 animate-fade-in mt-4">
-                  <p className="text-gray-500 font-bold mb-2">선택된 조건:</p>
-                  <span className="text-3xl font-black text-indigo-700 block mb-4">{randomCondition}</span>
-                  <p className="text-gray-700 font-bold bg-indigo-100 inline-block px-4 py-2 rounded-full">
-                    해당하는 친구들이 모여서 의논하여 아래 6문제를 풀어주세요! 👉
-                  </p>
-                </div>
-              )}
-            </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
-              {questions.map((q, idx) => (
-                <div key={idx} className={`bg-white p-6 rounded-2xl shadow-sm border-2 flex flex-col justify-between h-full transition-all ${
-                    m2Answers[idx] !== null ? 'border-indigo-300 bg-indigo-50' : 'border-gray-200'
-                  }`}
-                >
-                  <p className="text-lg font-bold text-gray-800 mb-6 break-keep leading-relaxed">
-                    <span className="text-indigo-500 mr-2 text-xl">Q{idx + 1}.</span> {q}
-                  </p>
-                  <div className="flex gap-4 justify-center mt-auto">
-                    <button 
-                      onClick={() => handleM2Answer(idx, true)}
-                      disabled={isM2Solved}
-                      className={`w-16 h-16 rounded-full text-2xl font-black border-4 transition-all ${
-                        m2Answers[idx] === true ? 'bg-blue-500 text-white border-blue-600 shadow-inner scale-95' : 'bg-gray-100 text-gray-400 border-gray-200 hover:border-blue-300 hover:text-blue-500'
-                      } ${isM2Solved ? 'opacity-50 cursor-not-allowed' : ''}`}
-                    >O</button>
-                    <button 
-                      onClick={() => handleM2Answer(idx, false)}
-                      disabled={isM2Solved}
-                      className={`w-16 h-16 rounded-full text-2xl font-black border-4 transition-all ${
-                        m2Answers[idx] === false ? 'bg-red-500 text-white border-red-600 shadow-inner scale-95' : 'bg-gray-100 text-gray-400 border-gray-200 hover:border-red-300 hover:text-red-500'
-                      } ${isM2Solved ? 'opacity-50 cursor-not-allowed' : ''}`}
-                    >X</button>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <MessageBox message={m2Message} type={isM2Solved ? 'success' : 'error'} />
-            
-            {isM2Solved && (
-              <div className="text-center mt-10 animate-bounce">
-                <Button 
-                  onClick={() => setCurrentScreen('mission3')}
-                  className="bg-green-500 text-white hover:bg-green-600 text-2xl py-5 px-12 rounded-full mx-auto shadow-xl border-4 border-green-200"
-                >
-                  🎉 비밀의 숲 통과! 제3의 방으로 ➔
+            {!randomCondition ? (
+              <div className="bg-white p-8 rounded-3xl shadow-lg border-4 border-green-200 text-center">
+                <h2 className="text-2xl font-black text-green-700 mb-6">누가 미션을 시작할까요?</h2>
+                <Button onClick={pickRandomCondition} className="bg-green-500 hover:bg-green-600 text-white mx-auto text-xl py-4 px-8 rounded-full">
+                  대표 뽑기 돌림판 🎲
                 </Button>
+              </div>
+            ) : (
+              <div className="animate-fade-in space-y-8">
+                <div className="bg-yellow-100 p-6 rounded-2xl border-2 border-yellow-300 text-center shadow-md">
+                  <h3 className="text-xl font-bold text-gray-700 mb-2">미션을 수행할 대표는...</h3>
+                  <div className="text-2xl md:text-3xl font-black text-indigo-700">{randomCondition}</div>
+                  <p className="mt-3 text-sm text-gray-500 font-bold">해당하는 친구가 여러 명이면 가위바위보로 1명을 정하세요!</p>
+                </div>
+
+                <div className="bg-white p-6 rounded-3xl shadow-xl border-4 border-green-300">
+                  <div className="grid gap-4">
+                    {questions.map((item, idx) => (
+                      <div key={idx} className="bg-gray-50 p-4 md:p-5 rounded-2xl border-2 border-gray-100 flex flex-col md:flex-row justify-between items-center gap-4 hover:border-green-200 transition-colors">
+                        <p className="text-lg font-bold text-gray-800 break-keep flex-1">{item.q}</p>
+                        <div className="flex gap-3 w-full md:w-auto">
+                          <Button 
+                            onClick={() => handleM2Answer(idx, true)}
+                            className={`flex-1 md:w-24 ${m2Answers[idx] === true ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-600 hover:bg-blue-100'}`}
+                            disabled={isM2Solved}
+                          >⭕ O</Button>
+                          <Button 
+                            onClick={() => handleM2Answer(idx, false)}
+                            className={`flex-1 md:w-24 ${m2Answers[idx] === false ? 'bg-red-500 text-white' : 'bg-gray-200 text-gray-600 hover:bg-red-100'}`}
+                            disabled={isM2Solved}
+                          >❌ X</Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <MessageBox message={m2Message} type={isM2Solved ? 'success' : 'error'} />
+
+                  {isM2Solved && (
+                    <div className="mt-8 flex justify-center animate-bounce">
+                      <Button onClick={() => setCurrentScreen('mission3')} className="bg-green-600 hover:bg-green-700 text-white text-xl px-10 py-4 rounded-full shadow-lg">
+                        마지막 방으로 이동 🚪▶️
+                      </Button>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </div>
         );
       };
 
-      const renderMission3 = () => {
-        return (
-          <div className="max-w-4xl mx-auto px-4 py-8 animate-fade-in">
-            <TitleBox 
-              title="제3의 방: 해커의 컴퓨터" 
-              subtitle="마지막 관문! 디지털 안전 수칙 속에 숨겨진 최종 암호를 입력하세요."
-              icon="💻"
-            />
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              <div className="bg-gray-900 text-green-400 p-8 rounded-3xl shadow-2xl font-mono relative overflow-hidden flex flex-col justify-between">
-                <div className="absolute top-0 left-0 w-full h-2 bg-green-500 opacity-20 animate-pulse"></div>
-                <div>
-                  <div className="text-[3rem] mb-6">🔑</div>
-                  <p className="text-xl mb-6 leading-relaxed break-keep">
-                    "다른 사람이 만든 자료는 반드시 <span className="inline-block border-b-4 border-green-500 px-2 w-16 text-center text-white bg-gray-800 rounded mx-1">?</span> 을/를 받고 이용합니다." <br/><br/>
-                    "선생님이 보여주신 자료라도 함부로 복사하지 않고 꼭 <span className="inline-block border-b-4 border-green-500 px-2 w-16 text-center text-white bg-gray-800 rounded mx-1">?</span> 을/를 구해야 합니다."
-                  </p>
-                </div>
-                <div className="bg-gray-800 p-4 rounded-xl mt-4">
-                  <p className="text-gray-400 mb-2 font-bold text-sm">▶ 최종 암호 입력</p>
-                  <div className="flex gap-2">
-                    <input 
-                      type="text" value={m3Input} onChange={(e) => setM3Input(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && !isM3Solved && handleM3Submit()} 
-                      placeholder="암호 입력"
-                      disabled={isM3Solved}
-                      className="flex-1 w-full bg-black text-green-400 border-2 border-green-500 rounded-lg p-3 text-xl text-center focus:outline-none focus:ring-4 focus:ring-green-500/50 disabled:opacity-50"
-                    />
-                    <Button onClick={handleM3Submit} disabled={isM3Solved} className="bg-green-600 text-white px-4 py-2">
-                      입력 ↵
-                    </Button>
-                  </div>
-                </div>
-              </div>
+      const renderMission3 = () => (
+        <div className="max-w-4xl mx-auto px-4 py-8 animate-fade-in">
+          <TitleBox 
+            title="제3의 방: 해커방 (디지털 금고)" 
+            subtitle="해커방의 암호를 풀면 최종 탈출입니다! 힌트 요정에게 도움을 요청하세요."
+            icon="💻"
+          />
 
-              <div className="bg-indigo-50 p-8 rounded-3xl shadow-md border-4 border-indigo-200 flex flex-col">
-                <h3 className="text-2xl font-black text-indigo-800 mb-4 flex items-center gap-2"><span className="text-2xl">✨</span> AI 힌트 요정</h3>
-                <p className="text-gray-600 mb-4 font-medium break-keep">도저히 모르겠나요? 원하는 스타일을 적어주면 AI 요정이 재미있는 힌트를 줍니다!</p>
-                <input 
-                  type="text" value={hintStyle} onChange={(e) => setHintStyle(e.target.value)}
-                  placeholder="예: 해적처럼, 강아지 소리로, 아재개그로"
-                  className="w-full bg-white border-2 border-indigo-300 rounded-lg p-3 text-lg mb-4 focus:outline-none focus:border-indigo-500"
-                />
-                <Button onClick={getAiHint} disabled={isHintLoading} className="bg-indigo-500 text-white w-full mb-6">
-                  {isHintLoading ? <><span className="animate-spin inline-block mr-2">🌀</span> 생성 중...</> : "AI 맞춤 힌트 받기 ✨"}
-                </Button>
-                {aiHint && (
-                  <div className="bg-white p-4 rounded-xl border-2 border-indigo-100 text-indigo-900 font-medium leading-relaxed relative">
-                    <div className="absolute -top-3 left-4 w-4 h-4 bg-white border-t-2 border-l-2 border-indigo-100 transform rotate-45"></div>
-                    {aiHint}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <MessageBox message={m3Message} type={isM3Solved ? 'success' : 'error'} />
-
-            {isM3Solved && (
-              <div className="text-center mt-8 animate-bounce">
-                <Button 
-                  onClick={() => setCurrentScreen('success')} 
-                  className="bg-green-500 text-white hover:bg-green-600 text-2xl py-4 px-12 rounded-full mx-auto"
-                >
-                  🎉 방탈출 성공! 임명장 받으러 가기 ➔
-                </Button>
-              </div>
-            )}
-          </div>
-        );
-      };
-
-      const renderSuccess = () => (
-        <div className="flex flex-col items-center justify-center min-h-[80vh] text-center px-4 animate-fade-in py-8">
-          <div className="bg-gradient-to-br from-yellow-100 to-yellow-300 p-1 bg-opacity-50 rounded-3xl shadow-2xl max-w-5xl w-full">
-            <div className="bg-white p-8 md:p-12 rounded-3xl border-4 border-yellow-400 relative overflow-hidden">
-              <div className="flex justify-center mb-4"><div className="text-[6rem] drop-shadow-lg mb-4">🏆</div></div>
-              <h1 className="text-4xl md:text-5xl font-black text-gray-800 mb-2">방탈출 성공!</h1>
-              <h2 className="text-xl md:text-2xl font-bold text-indigo-600 mb-8">안전 과학 탐구원 임명장</h2>
+          <div className="grid md:grid-cols-2 gap-6">
+            {/* 힌트 요정 영역 */}
+            <div className="bg-indigo-50 p-6 md:p-8 rounded-3xl shadow-lg border-4 border-indigo-200 flex flex-col h-full">
+              <h2 className="text-2xl font-black text-indigo-800 mb-4 flex items-center gap-2">🧚‍♀️ AI 힌트 요정</h2>
+              <p className="text-gray-700 font-bold mb-4 break-keep">
+                온라인에서 내 개인정보(이름, 사진, 주소 등)를 올릴 때나 결제를 할 때는 반드시 부모님의 <strong className="text-red-500 text-xl">OO</strong>을/를 받아야 합니다. 
+              </p>
               
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
-                <div className="bg-yellow-50 p-6 rounded-xl border-2 border-yellow-200 text-left flex flex-col justify-center">
-                  <p className="text-lg text-gray-700 font-medium leading-relaxed text-center break-keep">
-                    위 임명장 소지자(1~8모둠)는<br/>
-                    실험실, 야외, 디지털 환경에서의 안전 수칙을 완벽히 이해하였기에<br/>
-                    비밀 과학 연구소의 정식 탐구원으로 임명합니다!
-                  </p>
-                </div>
-
-                <div className="bg-blue-50 p-6 rounded-xl border-2 border-blue-200 flex flex-col">
-                  <h3 className="text-xl font-bold text-blue-800 mb-2 flex items-center justify-center gap-2">
-                    <span className="text-xl">✨</span> AI 연구소장의 특별 축하
-                  </h3>
-                  <p className="text-sm text-gray-600 mb-3 break-keep">우리 반이나 모둠의 재미있는 특징을 적어주세요!</p>
+              <div className="mt-auto bg-white p-4 rounded-2xl border-2 border-indigo-100 mb-4">
+                <p className="text-sm font-bold text-gray-500 mb-2">어떤 스타일로 힌트를 줄까요? (예: 할아버지, 랩퍼, 아기)</p>
+                <div className="flex gap-2">
                   <input 
-                    type="text" value={teamFeature} onChange={(e) => setTeamFeature(e.target.value)}
-                    placeholder="예: 떡볶이를 좋아하는 3반"
-                    className="w-full bg-white border border-blue-300 rounded-lg p-2 text-base mb-3 focus:outline-none focus:border-blue-500"
+                    type="text" 
+                    className="flex-1 p-3 rounded-xl border-2 border-gray-200 focus:border-indigo-400 focus:ring focus:ring-indigo-100 outline-none font-bold"
+                    placeholder="스타일 입력..."
+                    value={hintStyle}
+                    onChange={e => setHintStyle(e.target.value)}
+                    onKeyPress={e => e.key === 'Enter' && getAiHint()}
                   />
-                  <Button onClick={getAiCertificate} disabled={isCertLoading} className="bg-blue-500 text-white w-full">
-                    {isCertLoading ? <><span className="animate-spin inline-block mr-2">🌀</span> 작성 중...</> : "AI 특별 축하 받기 ✨"}
+                  <Button onClick={getAiHint} disabled={isHintLoading} className="bg-indigo-500 hover:bg-indigo-600 text-white whitespace-nowrap">
+                    {isHintLoading ? '생성중..' : '힌트 받기'}
                   </Button>
                 </div>
               </div>
 
-              {aiCertificate && (
-                 <div className="bg-indigo-50 p-6 rounded-2xl border-4 border-indigo-200 text-left mb-8 animate-fade-in">
-                   <div className="font-bold text-indigo-900 whitespace-pre-line text-lg md:text-xl leading-relaxed text-center">{aiCertificate}</div>
-                   <p className="text-right text-indigo-400 mt-4 font-bold">- 비밀 과학 연구소 AI 소장 -</p>
-                   
-                   <div className="mt-8 border-t-2 border-indigo-200 border-dashed pt-6 text-center">
-                     <p className="text-2xl font-black text-red-600 animate-pulse bg-red-50 inline-block px-6 py-3 rounded-full border-2 border-red-200 shadow-sm">
-                       이제 교과서에 있는 서약서를 작성해봅시다! ✍️
-                     </p>
-                   </div>
-                 </div>
+              {aiHint && (
+                <div className="bg-white p-4 rounded-2xl shadow-inner border border-indigo-100 whitespace-pre-wrap text-indigo-900 font-bold animate-fade-in mt-2 relative">
+                  <div className="absolute -top-3 -left-3 text-2xl">✨</div>
+                  {aiHint}
+                </div>
+              )}
+            </div>
+
+            {/* 암호 입력 영역 */}
+            <div className="bg-white p-6 md:p-8 rounded-3xl shadow-lg border-4 border-gray-300 flex flex-col justify-center items-center text-center">
+              <div className="text-6xl mb-6">🔒</div>
+              <h2 className="text-2xl font-black text-gray-800 mb-6">금고 암호 (두 글자)</h2>
+              
+              <input 
+                type="text" 
+                className="w-full max-w-[200px] text-center text-3xl p-4 rounded-xl border-4 border-gray-200 focus:border-blue-500 outline-none font-black mb-6 tracking-widest"
+                placeholder="OO"
+                maxLength={2}
+                value={m3Input}
+                onChange={e => setM3Input(e.target.value)}
+                onKeyPress={e => e.key === 'Enter' && handleM3Submit()}
+                disabled={isM3Solved}
+              />
+              
+              {!isM3Solved && (
+                <Button onClick={handleM3Submit} className="bg-gray-800 hover:bg-gray-900 text-white px-10 py-3 rounded-full w-full max-w-[200px]">
+                  입력
+                </Button>
               )}
 
-              {/* 추억 갤러리 */}
-              {savedPhotos.length > 0 && (
-                <div className="mt-12 bg-gray-50 p-8 rounded-2xl border-2 border-gray-200 shadow-inner">
-                  <h3 className="text-3xl font-black text-gray-800 mb-8 flex items-center justify-center gap-3">
-                    📸 우리 반 추억 갤러리
-                  </h3>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {savedPhotos.map((photo, idx) => (
-                      <div key={idx} className="bg-white p-4 rounded-xl shadow-md border border-gray-200 transform hover:scale-105 transition-transform duration-300">
-                        <img src={photo.img} alt={`${photo.group}모둠 사진`} className="w-full h-48 object-cover rounded-lg border-2 border-gray-100 transform scale-x-[-1]" />
-                        <p className="font-bold text-lg mt-3 text-indigo-700 text-center">
-                          {photo.group}모둠 인증샷! ✨
-                        </p>
-                      </div>
-                    ))}
+              <MessageBox message={m3Message} type={isM3Solved ? 'success' : 'error'} />
+
+              {isM3Solved && (
+                <Button onClick={() => setCurrentScreen('certificate')} className="mt-6 bg-blue-600 hover:bg-blue-700 text-white text-xl px-8 py-4 rounded-full shadow-lg animate-bounce w-full">
+                  명예의 전당으로 🏆
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
+      );
+
+      const renderCertificate = () => (
+        <div className="max-w-4xl mx-auto px-4 py-8 animate-fade-in">
+          <div className="bg-gradient-to-br from-yellow-50 to-orange-50 p-8 md:p-12 rounded-[2rem] shadow-2xl border-8 border-yellow-300 text-center relative overflow-hidden">
+            {/* 장식용 요소들 */}
+            <div className="absolute top-4 left-4 text-4xl opacity-50">✨</div>
+            <div className="absolute top-4 right-4 text-4xl opacity-50">🎉</div>
+            <div className="absolute bottom-4 left-4 text-4xl opacity-50">🎈</div>
+            <div className="absolute bottom-4 right-4 text-4xl opacity-50">🏅</div>
+
+            <div className="text-[5rem] mb-4 drop-shadow-lg">🏆</div>
+            <h1 className="text-4xl md:text-5xl font-black text-yellow-800 mb-4 drop-shadow-sm">임무 완수! 방탈출 성공!</h1>
+            <p className="text-xl text-yellow-700 font-bold mb-10">여러분은 이제 비밀 과학 연구소의 정식 연구원입니다.</p>
+
+            <div className="bg-white/80 backdrop-blur p-6 md:p-8 rounded-3xl border-2 border-yellow-200 shadow-md mb-8 max-w-2xl mx-auto">
+              <h2 className="text-xl font-black text-gray-800 mb-4">우리 반/모둠만의 특별한 수료증 멘트 만들기</h2>
+              <div className="flex flex-col sm:flex-row gap-3">
+                <input 
+                  type="text" 
+                  className="flex-1 p-3 rounded-xl border-2 border-gray-200 focus:border-yellow-400 outline-none font-bold"
+                  placeholder="예: 우리 반은 목소리가 크고 웃음이 많아요"
+                  value={teamFeature}
+                  onChange={e => setTeamFeature(e.target.value)}
+                  onKeyPress={e => e.key === 'Enter' && getAiCertificate()}
+                />
+                <Button onClick={getAiCertificate} disabled={isCertLoading} className="bg-yellow-500 hover:bg-yellow-600 text-white whitespace-nowrap">
+                  {isCertLoading ? '작성중..' : '수료증 받기'}
+                </Button>
+              </div>
+
+              {aiCertificate && (
+                <div className="mt-6 p-6 bg-gradient-to-b from-white to-gray-50 border-4 border-double border-yellow-400 rounded-xl shadow-inner text-left relative">
+                  <div className="text-center font-black text-2xl mb-4 text-gray-800 border-b-2 border-gray-200 pb-2">안전 수칙 마스터 수료증</div>
+                  <p className="whitespace-pre-wrap text-lg font-bold text-gray-700 leading-relaxed text-center break-keep">
+                    {aiCertificate}
+                  </p>
+                  <div className="mt-6 text-right font-bold text-gray-500">
+                    - 비밀 과학 연구소 최고 소장 올림 -
+                  </div>
+                  {/* 스탬프 효과 */}
+                  <div className="absolute bottom-4 left-4 w-16 h-16 border-4 border-red-500 rounded-full flex items-center justify-center text-red-500 font-black transform -rotate-12 opacity-80">
+                    합격
                   </div>
                 </div>
               )}
+            </div>
 
-              <div className="mt-10 border-t-2 border-gray-100 pt-8">
-                <Button onClick={goHome} className="bg-gray-800 text-white hover:bg-gray-900 mx-auto text-xl py-4 px-8 rounded-full shadow-lg">
-                  🏠 처음 화면으로 돌아가기
-                </Button>
+            {/* 갤러리 섹션 */}
+            {savedPhotos.length > 0 && (
+              <div className="mt-10 mb-8">
+                <h3 className="text-2xl font-black text-gray-800 mb-6 border-b-2 border-yellow-200 pb-2 inline-block">📸 우리의 미션 인증샷</h3>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  {savedPhotos.map((photo, idx) => (
+                    <div key={idx} className="bg-white p-2 rounded-xl shadow-md border-2 border-gray-100 transform rotate-1 hover:rotate-0 transition-transform">
+                      <img src={photo.img} alt={`${photo.group}모둠 미션 성공사진`} className="w-full aspect-square object-cover rounded-lg mb-2 bg-black" />
+                      <p className="font-bold text-gray-700 text-sm">{photo.group}모둠 성공!</p>
+                    </div>
+                  ))}
+                </div>
               </div>
+            )}
+
+            <div className="flex flex-col sm:flex-row justify-center gap-4 mt-8">
+              <Button onClick={() => {
+                setActiveGroup(null); // 모둠 선택 상태를 초기화하여 전체 목록 화면으로 이동
+                setCurrentScreen('mission1');
+              }} className="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-3 rounded-full shadow-lg">
+                실험실로 돌아가서 복습하기 🔄
+              </Button>
+              <Button onClick={goHome} className="bg-gray-400 hover:bg-gray-500 text-white px-8 py-3 rounded-full text-sm">
+                완전히 처음부터 다시 시작 ⚠️
+              </Button>
             </div>
           </div>
         </div>
       );
 
       return (
-        <div className="min-h-screen bg-slate-50 font-sans text-gray-800 pb-12">
-          
-          <div className="bg-white shadow-sm mb-8 py-3 px-4 md:px-6 sticky top-0 z-50 border-b border-gray-200 flex flex-col md:flex-row justify-between items-center gap-3">
-            <div className="flex items-center gap-3 w-full md:w-auto">
-              <button onClick={goHome} className="text-gray-600 hover:text-indigo-600 hover:bg-indigo-50 font-bold flex items-center gap-1.5 bg-gray-100 px-3 py-2 rounded-lg transition-colors shadow-sm whitespace-nowrap">
-                🏠 처음으로
-              </button>
-              
-              {currentScreen !== 'intro' && currentScreen !== 'success' && (
-                <div className="hidden lg:flex items-center gap-2 ml-4">
-                  <span className="font-bold text-gray-500">현재 미션:</span>
-                  <span className={`px-3 py-1.5 rounded-full text-xs font-bold ${currentScreen === 'mission1' ? 'bg-indigo-600 text-white' : 'bg-gray-200 text-gray-500'}`}>1. 실험실</span>
-                  <span className={`px-3 py-1.5 rounded-full text-xs font-bold ${currentScreen === 'mission2' ? 'bg-indigo-600 text-white' : 'bg-gray-200 text-gray-500'}`}>2. 야외숲</span>
-                  <span className={`px-3 py-1.5 rounded-full text-xs font-bold ${currentScreen === 'mission3' ? 'bg-indigo-600 text-white' : 'bg-gray-200 text-gray-500'}`}>3. 해커방</span>
-                </div>
-              )}
-            </div>
-
-            <div className="flex items-center bg-indigo-50 px-3 py-1.5 rounded-lg border border-indigo-100">
-              <span className="mr-2 text-xl">🌐</span>
-              <div id="google_translate_element"></div>
+        <div className="min-h-screen relative font-sans text-gray-800">
+          {/* 상단 네비게이션 로고 (선택사항) */}
+          <div className="absolute top-6 left-6 z-10 hidden md:block">
+            <div className="font-black text-indigo-900 text-xl tracking-wider flex items-center gap-2">
+              <span>🔬</span> SCIENCE LAB
             </div>
           </div>
-          
-          {currentScreen === 'intro' && renderIntro()}
-          {currentScreen === 'mission1' && renderMission1()}
-          {currentScreen === 'mission2' && renderMission2()}
-          {currentScreen === 'mission3' && renderMission3()}
-          {currentScreen === 'success' && renderSuccess()}
+
+          <div className="pt-16 md:pt-8 pb-16">
+            {renderProgressBar()}
+            {currentScreen === 'intro' && renderIntro()}
+            {currentScreen === 'mission1' && renderMission1()}
+            {currentScreen === 'mission2' && renderMission2()}
+            {currentScreen === 'mission3' && renderMission3()}
+            {currentScreen === 'certificate' && renderCertificate()}
+          </div>
         </div>
       );
     }
